@@ -1,3 +1,79 @@
+#include "threads/thread.h"
+#include <debug.h>
+#include <stddef.h>
+#include <random.h>
+#include <stdio.h>
+#include <string.h>
+#include "threads/flags.h"
+#include "threads/interrupt.h"
+#include "threads/intr-stubs.h"
+#include "threads/palloc.h"
+#include "threads/switch.h"
+#include "threads/synch.h"
+#include "threads/vaddr.h"
+#ifdef USERPROG
+#include "userprog/process.h"
+#endif
+
+/* Random value for struct thread's `magic' member.
+   Used to detect stack overflow.  See the big comment at the top
+   of thread.h for details. */
+#define THREAD_MAGIC 0xcd6abf4b
+
+/* List of processes in THREAD_READY state, that is, processes
+   that are ready to run but not actually running. */
+static struct list ready_list;
+
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+static struct list all_list;
+
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+static struct list sleep_list;
+
+/* Idle thread. */
+static struct thread *idle_thread;
+
+/* Initial thread, the thread running init.c:main(). */
+static struct thread *initial_thread;
+
+/* Lock used by allocate_tid(). */
+static struct lock tid_lock;
+
+/* Stack frame for kernel_thread(). */
+struct kernel_thread_frame
+  {
+    void *eip;                  /* Return address. */
+    thread_func *function;      /* Function to call. */
+    void *aux;                  /* Auxiliary data for function. */
+  };
+
+/* Statistics. */
+static long long idle_ticks;    /* # of timer ticks spent idle. */
+static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
+static long long user_ticks;    /* # of timer ticks in user programs. */
+
+/* Scheduling. */
+#define TIME_SLICE 4            /* # of timer ticks to give each thread. */
+static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+
+/* If false (default), use round-robin scheduler.
+   If true, use multi-level feedback queue scheduler.
+   Controlled by kernel command-line option "-o mlfqs". */
+bool thread_mlfqs;
+
+static void kernel_thread (thread_func *, void *aux);
+
+static void idle (void *aux UNUSED);
+static struct thread *running_thread (void);
+static struct thread *next_thread_to_run (void);
+static void init_thread (struct thread *, const char *name, int priority);
+static bool is_thread (struct thread *) UNUSED;
+static void *alloc_frame (struct thread *, size_t size);
+static void schedule (void);
+void thread_schedule_tail (struct thread *prev);
+static tid_t allocate_tid (void);
 donate_priority_chain(struct lock * lock);
 
 /* Debugging function */
